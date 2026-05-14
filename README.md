@@ -251,7 +251,15 @@ export WANDB_MODE=online   # or offline
 
 ---
 
-## Evaluation (Multi-Turn)
+## Evaluation
+
+### Single-Turn Evaluation
+
+```bash
+bash ./single-turn/eval_benchmark/eval_model_local.sh
+```
+
+### Multi-Turn Evaluation
 
 Convert a trained checkpoint to HuggingFace format, then evaluate:
 
