@@ -1,0 +1,83 @@
+base_model: Qwen/Qwen2.5-7B
+trust_remote_code: false
+
+load_in_8bit: false
+load_in_4bit: false
+strict: false
+
+chat_template: qwen_25
+datasets:
+  - path: ${SFT_DATA_PATH:-./sft/filtered_sft_data.jsonl}
+    type: chat_template
+    field_messages: messages
+    message_field_role: role
+    message_field_content: content
+    roles:
+      user: ["human", "user"]
+      assistant: ["gpt", "assistant", "ai"]
+      system: ["system"]
+
+dataset_prepared_path: ${CACHE_DIR:-/tmp}/axolotl_prepared_cache
+val_set_size: 0.0
+# Limit data loading processes to avoid memory and disk space issues
+num_proc: 1
+
+# Disable DataLoader multiprocessing and pin_memory to avoid shared memory issues
+dataloader_num_workers: 0
+dataloader_pin_memory: false
+
+output_dir: ${CHECKPOINT_PATH:-./checkpoints}/mask_filtered_sft
+
+sequence_len: 4096
+sample_packing: true
+eval_sample_packing: true
+pad_to_sequence_len: true
+
+wandb_project: qwen_prm_sft
+wandb_watch:
+wandb_name: qwen2.5_7b_filtered_sft
+wandb_log_model:
+
+gradient_accumulation_steps: 16
+micro_batch_size: 1
+num_epochs: 3
+optimizer: paged_adamw_32bit
+lr_scheduler: cosine
+learning_rate: 5e-6
+
+train_on_inputs: false
+group_by_length: false
+bf16: auto
+fp16: false
+tf32: true
+
+gradient_checkpointing: true
+gradient_checkpointing_kwargs:
+  use_reentrant: false
+early_stopping_patience:
+resume_from_checkpoint:
+local_rank:
+logging_steps: 1
+xformers_attention:
+flash_attention: true
+
+warmup_ratio: 0.05
+saves_per_epoch: 1
+evals_per_epoch: 0
+debug:
+weight_decay: 0.01
+fsdp:
+fsdp_config:
+special_tokens:
+  bos_token: "<|im_start|>"
+  eos_token: "<|im_end|>"
+  pad_token: "<|endoftext|>"
+
+
+plugins:
+  - axolotl.integrations.liger.LigerPlugin
+liger_rope: true
+liger_rms_norm: true
+liger_glu_activation: true
+liger_layer_norm: true
+liger_fused_linear_cross_entropy: true

@@ -1,0 +1,107 @@
+version: '3.8'
+
+services:
+  verl-exp:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: verl-mismatch:latest
+    container_name: verl_mismatch_experiment
+    
+    # GPU configuration
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all  # Use all available GPUs
+              capabilities: [gpu]
+    
+    # Environment variables
+    environment:
+      # Don't pass CUDA_VISIBLE_DEVICES into container - let Docker runtime handle GPU mapping
+      # The host's CUDA_VISIBLE_DEVICES is already handled by docker-compose's device selection
+      - CUDA_DEVICE_MAX_CONNECTIONS=1
+      - WANDB_API_KEY=${WANDB_API_KEY:-YOUR_WANDB_KEY}
+      - WANDB_ENTITY=${WANDB_ENTITY:-mismatch}
+      - VERL_PATH=/workspace/verl
+      - WORK_DIR=/workspace/project
+      - PYTHONPATH=/workspace/verl:/workspace/project
+      - HF_HUB_ENABLE_HF_TRANSFER=1
+      - VLLM_USE_V1=1
+      - VLLM_WORKER_MULTIPROC_METHOD=spawn
+      - HF_HOME=/workspace/project/.cache/huggingface
+      - HF_TOKEN=${HF_TOKEN:-}
+      - USER=${LOCAL_USER}
+      - LOGNAME=${LOCAL_LOGNAME}
+      - HOME=/workspace/project
+    
+    # Volume mounts
+    volumes:
+      # Mount project directory (use bind mount with type specification)
+      - type: bind
+        source: /home/zhang430/code/mismatch_rl
+        target: /workspace/project
+        bind:
+          selinux: z
+      # Mount data directory
+      - type: bind
+        source: /home/zhang430/data
+        target: /data
+        read_only: true
+        bind:
+          selinux: z
+      # Mount checkpoints directory
+      - type: bind
+        source: /home/zhang430/checkpoints
+        target: /checkpoints
+        bind:
+          selinux: z
+      # Cache directories for model downloads (use Docker volumes to avoid permission issues)
+      - huggingface_cache:/workspace/.cache/huggingface
+      - pip_cache:/root/.cache/pip
+      # Mount local models directory
+      - type: bind
+        source: /home/zhang430/models
+        target: /models
+        read_only: true
+        bind:
+          selinux: z
+      # Shared memory for PyTorch DataLoader
+      - /dev/shm:/dev/shm
+    
+    # Working directory
+    working_dir: /workspace/project
+    user: "${LOCAL_UID}:${LOCAL_GID}"
+    
+    # Keep container running
+    stdin_open: true
+    tty: true
+    
+    # Network mode
+    network_mode: host
+    
+    # IPC mode for shared memory
+    ipc: host
+    
+    # Privileged mode for full GPU access
+    privileged: true
+    
+    # Ulimits for Ray
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      stack:
+        soft: 67108864
+        hard: 67108864
+      nofile:
+        soft: 65536
+        hard: 65536
+
+volumes:
+  huggingface_cache:
+    driver: local
+  pip_cache:
+    driver: local
+

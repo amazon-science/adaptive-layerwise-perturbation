@@ -1,0 +1,69 @@
+#!/bin/bash
+# Permission Daemon - 定期修复目录权限
+# 用于应对系统定期重置权限的问题
+# Usage: bash docker/permission_daemon.sh [interval_seconds]
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+INTERVAL="${1:-30}"  # 默认每30秒检查一次
+
+echo "=========================================="
+echo "权限守护进程启动"
+echo "检查间隔: ${INTERVAL} 秒"
+echo "=========================================="
+
+# 无限循环，定期检查和修复权限
+iteration=0
+while true; do
+    iteration=$((iteration + 1))
+    timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    
+    echo ""
+    echo "[$timestamp] 第 $iteration 次检查..."
+    
+    # 检查关键目录权限
+    home_perm=$(stat -c %a /home/zhang430 2>/dev/null || echo "000")
+    code_perm=$(stat -c %a /home/zhang430/code 2>/dev/null || echo "000")
+    project_perm=$(stat -c %a /home/zhang430/code/mismatch_rl 2>/dev/null || echo "000")
+    data_perm=$(stat -c %a /home/zhang430/data 2>/dev/null || echo "000")
+    ckpt_perm=$(stat -c %a /home/zhang430/checkpoints 2>/dev/null || echo "000")
+    
+    # 判断是否需要修复
+    need_fix=false
+    
+    if [ "$home_perm" != "711" ]; then
+        echo "  ⚠️  /home/zhang430 权限异常 (当前: $home_perm, 需要: 711)"
+        need_fix=true
+    fi
+    
+    if [ "$code_perm" != "755" ] && [ "$code_perm" != "775" ]; then
+        echo "  ⚠️  /home/zhang430/code 权限异常 (当前: $code_perm)"
+        need_fix=true
+    fi
+    
+    if [ "$project_perm" != "755" ] && [ "$project_perm" != "775" ]; then
+        echo "  ⚠️  项目目录权限异常 (当前: $project_perm)"
+        need_fix=true
+    fi
+    
+    if [[ ! "$ckpt_perm" =~ ^77[0-7]$ ]]; then
+        echo "  ⚠️  checkpoints 权限异常 (当前: $ckpt_perm, 需要: 777)"
+        need_fix=true
+    fi
+    
+    # 如果需要修复，运行fix_permissions.sh
+    if [ "$need_fix" = true ]; then
+        echo "  🔧 正在修复权限..."
+        bash "$SCRIPT_DIR/fix_permissions.sh" > /tmp/perm_fix_$$.log 2>&1
+        if [ $? -eq 0 ]; then
+            echo "  ✓ 权限已修复"
+        else
+            echo "  ⚠️  部分权限修复失败（可能需要管理员权限）"
+        fi
+    else
+        echo "  ✓ 权限正常"
+    fi
+    
+    # 等待下一次检查
+    sleep ${INTERVAL}
+done
+
